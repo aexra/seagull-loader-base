@@ -13,8 +13,8 @@
     "windows": [
       {
         "title": "Seagull Loader",
-        "width": 800,
-        "height": 600
+        "width": 300,
+        "height": 400
       }
     ],
     "security": {
