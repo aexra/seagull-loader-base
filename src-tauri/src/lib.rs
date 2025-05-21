@@ -16,8 +16,10 @@ struct ClientConfig {
     allow_pre_releases: bool
 }
 
-fn load_config() -> Result<Config, Box<dyn std::error::Error>> {
-    let path = PathBuf::from("resources/conf.json");
+fn load_config(base: &PathBuf) -> Result<Config, Box<dyn std::error::Error>> {
+    let path = base
+        .join("resources")
+        .join("conf.json");
     
     if !path.exists() {
         panic!();
@@ -29,9 +31,12 @@ fn load_config() -> Result<Config, Box<dyn std::error::Error>> {
     Ok(data)
 }
 
-fn load_client_config() -> Result<ClientConfig, Box<dyn std::error::Error>> {
-    let path = PathBuf::from("client/resources/conf.json");
-    
+fn load_client_config(base: &PathBuf) -> Result<ClientConfig, Box<dyn std::error::Error>> {
+    let path = base
+        .join("client")
+        .join("resources")
+        .join("client");
+
     if !path.exists() {
         panic!();
     }
@@ -49,11 +54,19 @@ async fn update() -> Result<(), String> {
     // Если файла нет или версия не актуальна выполнть обновление
     // Если актуальная версия - закрыть приложение и запустить клиент
 
-    let data = load_config().map_err(|e| e.to_string())?;
+    // Для production
+    #[cfg(not(debug_assertions))]
+    let base_dir = PathBuf::from(".");
+    
+    // Для development
+    #[cfg(debug_assertions)]
+    let base_dir = std::env::current_dir().map_err(|e| e.to_string())?.join("target").join("debug");
+
+    let data = load_config(&base_dir).map_err(|e| e.to_string())?;
     let src = data.client_source;
 
     let client = reqwest::Client::builder()
-        .user_agent("Seagull/0.0.1-alpha.1")
+        .user_agent("Seagull")
         .build()
         .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
 
@@ -101,12 +114,12 @@ async fn update() -> Result<(), String> {
 
     println!("Verifing current client version...");
 
-    let client_conf_path = PathBuf::from("client/resources/conf.json");
+    let client_conf_path = base_dir.join("client").join("resources").join("conf.json");
     if client_conf_path.exists() {
         println!("Config file found");
 
         // Проверка на версию
-        let data = load_client_config();
+        let data = load_client_config(&base_dir);
         
         // Если ошибка - обновимся
         // Если если нет ошибки
@@ -130,7 +143,6 @@ async fn update() -> Result<(), String> {
     let assets = rel["assets"]
         .as_array()
         .ok_or("No assets found in release")?;
-
     println!("Retrieved version assets");
 
     let release_asset = assets
@@ -141,15 +153,13 @@ async fn update() -> Result<(), String> {
     let download_url = release_asset["browser_download_url"]
         .as_str()
         .ok_or("Invalid download URL")?;
-    
     println!("release.zip asset found at: {}", download_url);
 
     // Создаем временную директорию
-    let temp_dir = PathBuf::from("temp");
+    let temp_dir = base_dir.join("temp");
     if !temp_dir.exists() {
         fs::create_dir(&temp_dir).map_err(|e| format!("Failed to create temp dir: {}", e))?;
     }
-
     println!("Temp folder created at: {}", temp_dir.display());
 
     // Загружаем архив
@@ -157,20 +167,19 @@ async fn update() -> Result<(), String> {
     println!("Downloading archive to: {}", zip_path.display());
 
     download_file(download_url, &zip_path, &client).await?;
-
     println!("Archive downloaded");
     
     println!("Unzipping archive...");
 
     // 5. Распаковываем архив
     extract_zip(&zip_path, &temp_dir)?;
-
     println!("Archive unzipped");
 
     // 6. Удаляем архив
     fs::remove_file(&zip_path).map_err(|e| format!("Failed to remove zip file: {}", e))?;
-
     println!("Temp archive removed");
+
+    launch_client();
 
     Ok(())
 }
