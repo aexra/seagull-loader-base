@@ -1,6 +1,7 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 
 use serde::{Deserialize, Serialize};
+use tauri::{AppHandle, Emitter};
 use std::{fs::{self, File}, io::{Read, Write}, path::{Path, PathBuf}};
 use reqwest::{self, header::ACCEPT};
 use zip::ZipArchive;
@@ -48,7 +49,7 @@ fn load_client_config(base: &PathBuf) -> Result<ClientConfig, Box<dyn std::error
 }
 
 #[tauri::command]
-async fn update() -> Result<(), String> {
+async fn update(app: AppHandle) -> Result<(), String> {
     // Считать источник клиента из локального файла conf.json
     // Проверить во вложенной папке client наличие файла conf.json
     // Если файла нет или версия не актуальна выполнть обновление
@@ -62,8 +63,12 @@ async fn update() -> Result<(), String> {
     #[cfg(debug_assertions)]
     let base_dir = std::env::current_dir().map_err(|e| e.to_string())?.join("target").join("debug");
 
+    app.emit("stage-changed", "Загружаем конфиги").unwrap();
+
     let data = load_config(&base_dir).map_err(|e| e.to_string())?;
     let src = data.client_source;
+
+    app.emit("stage-changed", "Строим хттп-клиент").unwrap();
 
     let client = reqwest::Client::builder()
         .user_agent("Seagull")
@@ -72,12 +77,16 @@ async fn update() -> Result<(), String> {
 
     println!("HttpClient built");
 
+    app.emit("stage-changed", "Ищем версии").unwrap();
+
     let response = client.get(&src)
         .send()
         .await
         .map_err(|e| format!("Failed to fetch update: {}", e))?;
 
     println!("Releases fetched");
+
+    app.emit("stage-changed", "Парсим версии").unwrap();
 
     let json: serde_json::Value = response
         .json()
@@ -109,8 +118,11 @@ async fn update() -> Result<(), String> {
 
     let ver = latest_version.strip_prefix('v').unwrap_or(&latest_version);
     println!("Last version: {}", ver);
+    app.emit("cloud-version-found", ver).unwrap();
 
     // Проверить наличие установленной версии
+
+    app.emit("stage-changed", "Ищем установленный клиент").unwrap();
 
     println!("Verifing current client version...");
 
@@ -128,7 +140,8 @@ async fn update() -> Result<(), String> {
 
         if let Ok(json) = data {
             println!("Config file parsed");
-            println!("Comparing versions: {} -> {}", ver, json.version);
+            app.emit("client-version-found", &json.version).unwrap();
+            println!("Comparing versions: {} -> {}", ver, &json.version);
             if json.version == ver {
                 println!("Version is up to date. Launching client...");
                 launch_client();
@@ -143,15 +156,18 @@ async fn update() -> Result<(), String> {
     }
 
     println!("Updating client...");
+    app.emit("stage-changed", "Обновляем клиент").unwrap();
 
     // Установить актуальную версию из release.zip
 
     // Находим нужный asset
+    app.emit("stage-changed", "Ищем исходники").unwrap();
     let assets = rel["assets"]
         .as_array()
         .ok_or("No assets found in release")?;
     println!("Retrieved version assets");
 
+    app.emit("stage-changed", "Ищем архив клиента").unwrap();
     let release_asset = assets
         .iter()
         .find(|a| a["name"].as_str() == Some("release.zip"))
@@ -163,6 +179,7 @@ async fn update() -> Result<(), String> {
     println!("release.zip asset found at: {}", download_url);
 
     // Создаем временную директорию
+    app.emit("stage-changed", "Создаем временные файлы").unwrap();
     let temp_dir = base_dir.join("temp");
     if !temp_dir.exists() {
         fs::create_dir(&temp_dir).map_err(|e| format!("Failed to create temp dir: {}", e))?;
@@ -170,17 +187,22 @@ async fn update() -> Result<(), String> {
     println!("Temp folder created at: {}", temp_dir.display());
 
     // Загружаем архив
+    app.emit("stage-changed", "Скачиваем клиент").unwrap();
     let zip_path = temp_dir.join("release.zip");
     println!("Downloading archive to: {}", zip_path.display());
 
-    download_file(download_url, &zip_path, &client).await?;
+    app.emit("download-started", {}).unwrap();
+    download_file(download_url, &zip_path, &client, &app, release_asset["size"].as_u64().unwrap()).await?;
     println!("Archive downloaded");
     
     println!("Unzipping archive...");
+    app.emit("stage-changed", "Распаковываем архив").unwrap();
 
     // Распаковываем архив
     extract_zip(&zip_path, &temp_dir)?;
     println!("Archive unzipped");
+
+    app.emit("stage-changed", "Чистим временные файлы").unwrap();
 
     // Удаляем архив
     fs::remove_file(&zip_path).map_err(|e| format!("Failed to remove zip file: {}", e))?;
@@ -194,12 +216,16 @@ async fn update() -> Result<(), String> {
     fs::rename(&base_dir.join("temp"), &base_dir.join("client")).ok();
     println!("Temp folder renamed to client");
 
+    app.emit("download-finished", {}).unwrap();
+
     launch_client();
 
     Ok(())
 }
 
-async fn download_file(url: &str, path: &Path, client: &reqwest::Client) -> Result<(), String> {
+async fn download_file(url: &str, path: &Path, client: &reqwest::Client, app: &AppHandle, total_size: u64) -> Result<(), String> {
+    println!("Total size: {}", total_size);
+    
     let mut response = client.get(url)
         .header(ACCEPT, "application/octet-stream")
         .send()
@@ -209,9 +235,20 @@ async fn download_file(url: &str, path: &Path, client: &reqwest::Client) -> Resu
     let mut file = File::create(path)
         .map_err(|e| format!("Failed to create file: {}", e))?;
 
+    let mut downloaded: u64 = 0;
+    let mut last_progress: u8 = 0;
+
     while let Some(chunk) = response.chunk().await.map_err(|e| format!("Failed to read chunk: {}", e))? {
         file.write_all(&chunk)
             .map_err(|e| format!("Failed to write chunk: {}", e))?;
+
+        downloaded += chunk.len() as u64;
+        let progress = ((downloaded as f64 / total_size as f64) * 100.0) as u8;
+
+        if progress != last_progress {
+            app.emit("download-progress", progress).unwrap();
+            last_progress = progress;
+        }
     }
 
     Ok(())

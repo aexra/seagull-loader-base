@@ -1,17 +1,8 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
+  import { listen } from '@tauri-apps/api/event'
 
   let running = $state(true);
-
-  const handleStart = async () => {
-    console.log("DOWNLOAD START");
-  };
-  const handleProgress = async (p: any) => {
-    console.log(p);
-  };
-  const handleFinish = async () => {
-    console.log("DOWNLOAD END");
-  };
 
   $effect(() => {
     // Проверить наличие обновлений через раст
@@ -19,15 +10,12 @@
 
     invoke("update").then();
 
-    document.body.addEventListener("download-started", handleStart);
-    document.body.addEventListener("download-progress", handleProgress);
-    document.body.addEventListener("download-finished", handleFinish);
-
-    return () => {
-      document.body.removeEventListener("download-started", handleStart);
-      document.body.removeEventListener("download-progress", handleProgress);
-      document.body.removeEventListener("download-finished", handleFinish);
-    };
+    listen("download-started", () => console.log("START"));
+    listen("download-progress", (e) => console.log(e.payload));
+    listen("download-finished", () => console.log("FIN"));
+    listen("stage-changed", (e) => console.log(e.payload));
+    listen("cloud-version-found", (e) => console.log(e.payload));
+    listen("client-version-found", (e) => console.log(e.payload));
   });
 </script>
 
