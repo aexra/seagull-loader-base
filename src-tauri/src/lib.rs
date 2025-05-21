@@ -6,17 +6,36 @@ use reqwest::{self};
 
 #[derive(Serialize, Deserialize)]
 struct Config {
-    client_source: String
+    client_source: String,
+    allow_pre_releases: bool
+}
+
+#[derive(Serialize, Deserialize)]
+struct ClientConfig {
+    version: String
 }
 
 fn load_config() -> Result<Config, Box<dyn std::error::Error>> {
-    let file_path = PathBuf::from("resources/conf.json");
-
-    if !file_path.exists() {
+    let path = PathBuf::from("resources/conf.json");
+    
+    if !path.exists() {
         panic!();
     }
 
-    let json = fs::read_to_string(file_path)?;
+    let json = fs::read_to_string(path)?;
+    let data = serde_json::from_str(&json)?;
+
+    Ok(data)
+}
+
+fn load_client_config() -> Result<ClientConfig, Box<dyn std::error::Error>> {
+    let path = PathBuf::from("client/resources/conf.json");
+    
+    if !path.exists() {
+        panic!();
+    }
+
+    let json = fs::read_to_string(path)?;
     let data = serde_json::from_str(&json)?;
 
     Ok(data)
@@ -66,7 +85,32 @@ async fn update() -> Result<(), String> {
     let ver = latest_version.strip_prefix('v').unwrap_or(&latest_version);
     println!("Last version found: {}", ver);
 
+    // Проверить наличие установленной версии
+    let client_conf_path = PathBuf::from("client/resources/conf.json");
+    if client_conf_path.exists() {
+        // Проверка на версию
+        let data = load_client_config();
+        
+        // Если ошибка - обновимся
+        // Если если нет ошибки
+        //   и версии совпадают - выйдем
+        //   и версия старее - обновимся
+
+        if let Ok(json) = data {
+            if json.version == ver {
+                launch_client();
+            }
+        }
+    }
+
+    // Установить актуальную версию из release.zip
+    
+
     Ok(())
+}
+
+fn launch_client() {
+
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
