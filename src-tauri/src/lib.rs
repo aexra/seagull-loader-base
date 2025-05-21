@@ -171,13 +171,21 @@ async fn update() -> Result<(), String> {
     
     println!("Unzipping archive...");
 
-    // 5. Распаковываем архив
+    // Распаковываем архив
     extract_zip(&zip_path, &temp_dir)?;
     println!("Archive unzipped");
 
-    // 6. Удаляем архив
+    // Удаляем архив
     fs::remove_file(&zip_path).map_err(|e| format!("Failed to remove zip file: {}", e))?;
     println!("Temp archive removed");
+
+    // Удаляем старый клиент, если он вообще был
+    fs::remove_dir_all(&base_dir.join("client")).ok();
+    println!("Client placeholder cleared");
+
+    // Переименовываем temp в client
+    fs::rename(&base_dir.join("temp"), &base_dir.join("client")).ok();
+    println!("Temp folder renamed to client");
 
     launch_client();
 
