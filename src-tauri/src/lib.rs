@@ -1,7 +1,8 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 
 use serde::{Deserialize, Serialize};
-use std::{f32::consts::E, fs, path::PathBuf};
+use std::{fs, path::PathBuf};
+use reqwest::{self};
 
 #[derive(Serialize, Deserialize)]
 struct Config {
@@ -28,14 +29,41 @@ async fn update() -> Result<(), String> {
     // Если файла нет или версия не актуальна выполнть обновление
     // Если актуальная версия - закрыть приложение и запустить клиент
 
-    let data = load_config();
+    let data = load_config().map_err(|e| e.to_string())?;
+    let src = data.client_source;
 
-    if let Err(_) = data {
-        panic!()
+    let client = reqwest::Client::builder()
+        .user_agent("Seagull/0.0.1-alpha.1")
+        .build()
+        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+
+    let response = client.get(&src)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch update: {}", e))?;
+
+    let json: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+    let latest_version = if let Some(array) = json.as_array() {
+        if let Some(first) = array.first() {
+            first["tag_name"]
+                .as_str()
+                .ok_or("tag_name is not a string or missing")?
+                .to_string()
+        } else {
+            return Err("Empty response array".to_string());
+        }
     } else {
-        let conf = data.unwrap();
-        let src = conf.client_source;
-    }
+        json["tag_name"]
+            .as_str()
+            .ok_or("tag_name is not a string or missing")?
+            .to_string()
+    };
+
+    println!("Latest version: {}", latest_version);
 
     Ok(())
 }

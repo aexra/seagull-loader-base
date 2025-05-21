@@ -36,7 +36,7 @@
     <img src="./seagull.png" alt="Seagull" class="seagull">
   </div>
   <div class="worker">
-
+    
   </div>
 </div>
 
