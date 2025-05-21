@@ -17,7 +17,7 @@
     // Проверить наличие обновлений через раст
     // Если найдены, перевести состояние в running
 
-    invoke("update").then(r => console.log(r));
+    invoke("update").then();
 
     document.body.addEventListener("download-started", handleStart);
     document.body.addEventListener("download-progress", handleProgress);

@@ -22,7 +22,7 @@ fn load_config() -> Result<Config, Box<dyn std::error::Error>> {
 }
 
 #[tauri::command]
-async fn update() -> Result<Config, String> {
+async fn update() -> Result<(), String> {
     // Считать источник клиента из локального файла conf.json
     // Проверить во вложенной папке client наличие файла conf.json
     // Если файла нет или версия не актуальна выполнть обновление
@@ -32,9 +32,12 @@ async fn update() -> Result<Config, String> {
 
     if let Err(_) = data {
         panic!()
+    } else {
+        let conf = data.unwrap();
+        let src = conf.client_source;
     }
 
-    Ok(data.unwrap())
+    Ok(())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
