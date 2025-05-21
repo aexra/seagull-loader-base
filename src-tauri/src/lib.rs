@@ -35,7 +35,7 @@ fn load_client_config(base: &PathBuf) -> Result<ClientConfig, Box<dyn std::error
     let path = base
         .join("client")
         .join("resources")
-        .join("client");
+        .join("conf.json");
 
     if !path.exists() {
         panic!();
@@ -128,10 +128,17 @@ async fn update() -> Result<(), String> {
 
         if let Ok(json) = data {
             println!("Config file parsed");
+            println!("Comparing versions: {} -> {}", ver, json.version);
             if json.version == ver {
                 println!("Version is up to date. Launching client...");
                 launch_client();
+                return Ok(());
+            } else {
+                println!("Need upgrade");
             }
+        } else {
+            let er = data.err();
+            println!("Cannot parse json: {}", er.unwrap());
         }
     }
 
