@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter};
-use std::{fs::{self, File}, io::{Read, Write}, path::{Path, PathBuf}};
+use std::{fs::{self, File}, io::{Read, Write}, path::{Path, PathBuf}, process::Command};
 use reqwest::{self, header::ACCEPT};
 use zip::ZipArchive;
 
@@ -144,7 +144,7 @@ async fn update(app: AppHandle) -> Result<(), String> {
             println!("Comparing versions: {} -> {}", ver, &json.version);
             if json.version == ver {
                 println!("Version is up to date. Launching client...");
-                launch_client(&app);
+                launch_client(&app, &base_dir);
                 return Ok(());
             } else {
                 println!("Need upgrade");
@@ -218,7 +218,7 @@ async fn update(app: AppHandle) -> Result<(), String> {
 
     app.emit("download-finished", {}).unwrap();
 
-    launch_client(&app);
+    launch_client(&app, &base_dir);
 
     Ok(())
 }
@@ -295,9 +295,17 @@ fn extract_zip(zip_path: &Path, target_dir: &Path) -> Result<(), String> {
     Ok(())
 }
 
-fn launch_client(app: &AppHandle) {
+fn launch_client(app: &AppHandle, base_dir: &PathBuf) {
     app.emit("stage-changed", "Обновление завершено").unwrap();
-    println!("Should start client")
+    println!("Should start client");
+
+    let exe = &base_dir.join("client").join("seagull-client.exe");
+    if let Err(e) = Command::new(exe.to_str().unwrap()).spawn() {
+        eprintln!("Failed to launch {}: {}", base_dir.display(), e);
+        app.exit(1);
+    }
+
+    app.exit(0);
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
