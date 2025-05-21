@@ -30,6 +30,9 @@
   <!-- <div class="worker">
     <span>{stage}</span>
   </div> -->
+  <div class="mask" data-tauri-drag-region>
+
+  </div>
 </div>
 
 <style>
@@ -47,6 +50,16 @@
     display: flex;
     flex-direction: column;
     justify-content: center;
+
+    position: relative;
+  }
+
+  .wrapper > .mask {
+    position: absolute;
+    left: 0;
+    right: 0;
+    width: 100%;
+    height: 100%;
   }
 
   .wrapper > .img {
@@ -63,6 +76,7 @@
     object-fit: contain;
     width: 100%;
     height: 100%;
+    user-select: none;
   }
 
   .wrapper > .loading {
