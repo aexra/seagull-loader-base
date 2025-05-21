@@ -144,7 +144,7 @@ async fn update(app: AppHandle) -> Result<(), String> {
             println!("Comparing versions: {} -> {}", ver, &json.version);
             if json.version == ver {
                 println!("Version is up to date. Launching client...");
-                launch_client();
+                launch_client(&app);
                 return Ok(());
             } else {
                 println!("Need upgrade");
@@ -218,7 +218,7 @@ async fn update(app: AppHandle) -> Result<(), String> {
 
     app.emit("download-finished", {}).unwrap();
 
-    launch_client();
+    launch_client(&app);
 
     Ok(())
 }
@@ -295,7 +295,8 @@ fn extract_zip(zip_path: &Path, target_dir: &Path) -> Result<(), String> {
     Ok(())
 }
 
-fn launch_client() {
+fn launch_client(app: &AppHandle) {
+    app.emit("stage-changed", "Обновление завершено").unwrap();
     println!("Should start client")
 }
 

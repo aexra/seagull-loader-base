@@ -3,6 +3,10 @@
   import { listen } from '@tauri-apps/api/event'
 
   let running = $state(true);
+  let stage = $state("");
+  let cloud_v = $state<null | string>(null);
+  let client_v = $state<null | string>(null);
+  let dlprg = $state(0);
 
   $effect(() => {
     // Проверить наличие обновлений через раст
@@ -10,12 +14,12 @@
 
     invoke("update").then();
 
-    listen("download-started", () => console.log("START"));
-    listen("download-progress", (e) => console.log(e.payload));
-    listen("download-finished", () => console.log("FIN"));
-    listen("stage-changed", (e) => console.log(e.payload));
-    listen("cloud-version-found", (e) => console.log(e.payload));
-    listen("client-version-found", (e) => console.log(e.payload));
+    listen("download-started", () => {});
+    listen("download-progress", (e) => dlprg = Number.parseInt(e.payload as string));
+    listen("download-finished", () => {});
+    listen("stage-changed", (e) => stage = e.payload as string);
+    listen("cloud-version-found", (e) => cloud_v = e.payload as string);
+    listen("client-version-found", (e) => client_v = e.payload as string);
   });
 </script>
 
@@ -23,12 +27,16 @@
   <div class={`img loading`}>
     <img src="./seagull.png" alt="Seagull" class="seagull">
   </div>
-  <div class="worker">
-    
-  </div>
+  <!-- <div class="worker">
+    <span>{stage}</span>
+  </div> -->
 </div>
 
 <style>
+  * {
+    font-family: Geneva, Verdana, sans-serif;
+  }
+
   .wrapper {
     padding: 20px;
     box-sizing: border-box;
@@ -38,6 +46,7 @@
 
     display: flex;
     flex-direction: column;
+    justify-content: center;
   }
 
   .wrapper > .img {
@@ -69,14 +78,21 @@
   }
   .wrapper > .worker {
     height: 40px;
+    
+    display: flex;
+    flex-direction: column;
   }
 
   @keyframes seaload {
     0% {
       rotate: 0deg;
     }
+    30% {
+      transform: scale(1.2);
+    }
     60% {
       rotate: 360deg;
+      transform: scale(1);
     }
     100% {
       rotate: 360deg;
