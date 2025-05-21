@@ -1,13 +1,40 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 
+use serde::{Deserialize, Serialize};
+use std::{f32::consts::E, fs, path::PathBuf};
+
+#[derive(Serialize, Deserialize)]
+struct Config {
+    client_source: String
+}
+
+fn load_config() -> Result<Config, Box<dyn std::error::Error>> {
+    let file_path = PathBuf::from("resources/conf.json");
+
+    if !file_path.exists() {
+        panic!();
+    }
+
+    let json = fs::read_to_string(file_path)?;
+    let data = serde_json::from_str(&json)?;
+
+    Ok(data)
+}
+
 #[tauri::command]
-async fn update() -> Result<(), String> {
+async fn update() -> Result<Config, String> {
     // Считать источник клиента из локального файла conf.json
     // Проверить во вложенной папке client наличие файла conf.json
     // Если файла нет или версия не актуальна выполнть обновление
     // Если актуальная версия - закрыть приложение и запустить клиент
 
-    Ok(())
+    let data = load_config();
+
+    if let Err(_) = data {
+        panic!()
+    }
+
+    Ok(data.unwrap())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

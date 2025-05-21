@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { invoke } from '@tauri-apps/api/core'
+
   let running = $state(true);
 
   const handleStart = async () => {
@@ -14,6 +16,8 @@
   $effect(() => {
     // Проверить наличие обновлений через раст
     // Если найдены, перевести состояние в running
+
+    invoke("update").then(r => console.log(r));
 
     document.body.addEventListener("download-started", handleStart);
     document.body.addEventListener("download-progress", handleProgress);
