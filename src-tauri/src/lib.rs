@@ -63,7 +63,8 @@ async fn update() -> Result<(), String> {
             .to_string()
     };
 
-    println!("Latest version: {}", latest_version);
+    let ver = latest_version.strip_prefix('v').unwrap_or(&latest_version);
+    println!("Last version found: {}", ver);
 
     Ok(())
 }
